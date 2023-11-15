@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>摄像机</title>
+</head>
+
+<body>
+  <!DOCTYPE html>
+  <html lang="en">
+
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>摄像机</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+
+      #c {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .split {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+      }
+
+      .split>div {
+        width: 100%;
+        height: 100%;
+      }
+    </style>
+  </head>
+
+  <body>
+    <canvas id="c"></canvas>
+    <div class="split">
+      <div id="view1" tabindex="1"></div>
+      <div id="view2" tabindex="2"></div>
+    </div>
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.js",
+        "rectAreaLightUniformsLib": "./three.js-master/examples/jsm/lights/RectAreaLightUniformsLib.js",
+        "rectAreaLightHelper": "./three.js-master/examples/jsm/helpers/RectAreaLightHelper.js",
+        "OrbitControls": "./three.js-master/examples/jsm/controls/OrbitControls.js",
+        "lil-gui": "./three.js-master/examples/jsm/libs/lil-gui.module.min.js"
+      }
+    }
+  </script>
+    <script type="module">
+      import * as THREE from 'three';
+      import { RectAreaLightUniformsLib } from 'rectAreaLightUniformsLib';
+      import { RectAreaLightHelper } from 'rectAreaLightHelper';
+      import { OrbitControls } from 'OrbitControls';
+      import { GUI } from 'lil-gui';
+      // console.log(THREE);
+      // console.log(RectAreaLightUniformsLib)
+      // console.log(RectAreaLightHelper)
+      const canvas = document.querySelector('#c');
+      const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+      const fov = 45;
+      const aspect = 2;
+      const near = 0.1;
+      const far = 100;
+      // 相机1
+      const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+      camera.position.set(0, 10, 20);
+      // 相机2
+      const camera2 = new THREE.PerspectiveCamera(
+        60,  // fov
+        2,   // aspect
+        0.1, // near
+        500, // far
+      );
+      camera2.position.set(40, 10, 30);
+      camera2.lookAt(0, 5, 0);
+      // 创建场景
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x000000);
+      // 摄像机辅助对象
+      const cameraHelper = new THREE.CameraHelper(camera);
+      scene.add(cameraHelper);
+      // 控制相机
+      const view1Elem = document.querySelector('#view1');
+      const view2Elem = document.querySelector('#view2');
+      const controls = new OrbitControls(camera, view1Elem);
+      controls.target.set(0, 5, 0);
+      controls.update();
+      const controls2 = new OrbitControls(camera2, view2Elem);
+      controls2.target.set(0, 5, 0);
+      controls2.update();
+      // 用到three.js的剪函数(scissor function)来画两个场景和两个摄像机
+      function setScissorForElement(elem) {
+        const canvasRect = canvas.getBoundingClientRect();
+        const elemRect = elem.getBoundingClientRect();
+
+        // 计算canvas的尺寸
+        const right = Math.min(elemRect.right, canvasRect.right) - canvasRect.left;
+        const left = Math.max(0, elemRect.left - canvasRect.left);
+        const bottom = Math.min(elemRect.bottom, canvasRect.bottom) - canvasRect.top;
+        const top = Math.max(0, elemRect.top - canvasRect.top);
+
+        const width = Math.min(canvasRect.width, right - left);
+        const height = Math.min(canvasRect.height, bottom - top);
+
+        // 设置剪函数以仅渲染一部分场景
+        const positiveYUpBottom = canvasRect.height - bottom;
+        renderer.setScissor(left, positiveYUpBottom, width, height);
+        renderer.setViewport(left, positiveYUpBottom, width, height);
+
+        // 返回aspect
+        return width / height;
+      }
+
+      RectAreaLightUniformsLib.init(); // 使用矩形区域光需要引入RectAreaLightUniformsLib模块并进行初始化
+
+      const color = 0xffffff;
+      const intensity = 5;
+      const width = 12;
+      const height = 4;
+      const light = new THREE.RectAreaLight(color, intensity, width, height);
+      light.position.set(0, 10, 0);
+      light.rotation.x = THREE.MathUtils.degToRad(-90);
+      scene.add(light);
+      // 矩形区域光辅助工具
+      const helper = new RectAreaLightHelper(light);
+      scene.add(helper);
+
+      class MinMaxGUIHelper {
+        constructor(obj, minProp, maxProp, minDif) {
+          this.obj = obj;
+          this.minProp = minProp;
+          this.maxProp = maxProp;
+          this.minDif = minDif;
+        }
+        get min() {
+          return this.obj[this.minProp];
+        }
+        set min(v) {
+          this.obj[this.minProp] = v;
+          this.obj[this.maxProp] = Math.max(this.obj[this.maxProp], v + this.minDif); // 使near值永远小于far值，near最少比far小一个minDif
+        }
+        get max() {
+          return this.obj[this.maxProp];
+        }
+        set max(v) {
+          this.obj[this.maxProp] = v;
+          this.min = this.min;  // 这将调用min的setter
+        }
+      }
+
+      // function updateCamera() {
+      //   camera.updateProjectionMatrix();
+      // }
+
+      const gui = new GUI();
+      // gui.add(camera, 'fov', 1, 180).onChange(updateCamera);
+      // const minMaxGUIHelper = new MinMaxGUIHelper(camera, 'near', 'far', 0.1);
+      // gui.add(minMaxGUIHelper, 'min', 0.1, 50, 0.1).name('near').onChange(updateCamera);
+      // gui.add(minMaxGUIHelper, 'max', 0.1, 50, 0.1).name('far').onChange(updateCamera);
+      gui.add(camera, 'fov', 1, 180);
+      const minMaxGUIHelper = new MinMaxGUIHelper(camera, 'near', 'far', 0.1);
+      gui.add(minMaxGUIHelper, 'min', 0.1, 50, 0.1).name('near');
+      gui.add(minMaxGUIHelper, 'max', 0.1, 50, 0.1).name('far');
+
+      {
+        const planeSize = 40;
+        const loader = new THREE.TextureLoader();
+        const texture = loader.load('./three.js-master/manual/examples/resources/images/checker.png');
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.magFilter = THREE.NearestFilter;
+        const repeats = planeSize / 2;
+        texture.repeat.set(repeats, repeats);
+
+        const planeGeo = new THREE.PlaneGeometry(planeSize, planeSize)
+        const planeMat = new THREE.MeshStandardMaterial({
+          map: texture,
+          side: THREE.DoubleSide,
+        });
+        const plane = new THREE.Mesh(planeGeo, planeMat);
+        plane.rotation.x = Math.PI / -2;
+        scene.add(plane);
+      }
+      {
+        const cubeSize = 4;
+        const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+        const cubeMat = new THREE.MeshStandardMaterial({ color: '#8AC' });
+        const cube = new THREE.Mesh(cubeGeo, cubeMat);
+        cube.position.set(cubeSize + 1, cubeSize / 2, 0);
+        scene.add(cube);
+      }
+      {
+        const sphereRadius = 3;
+        const sphereWidthDevisions = 32;
+        const sphereHeightDevisions = 16;
+        const sphereGeo = new THREE.SphereGeometry(sphereRadius, sphereWidthDevisions, sphereHeightDevisions);
+        const sphereMat = new THREE.MeshStandardMaterial({ color: '#CA8' });
+        const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+        sphere.position.set(-sphereRadius - 1, sphereRadius + 2, 0);
+        scene.add(sphere);
+      }
+
+      function resizeRendererToDisplaySize(renderer) {
+        const canvas = renderer.domElement;
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        const needResize = canvas.width !== width || canvas.height !== height;
+        if (needResize) {
+          renderer.setSize(width, height, false);
+        }
+        return needResize;
+      }
+
+      function render() {
+        // if (resizeRendererToDisplaySize(renderer)) {
+        //   const canvas = renderer.domElement;
+        //   camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        //   camera.updateProjectionMatrix();
+        // }
+        resizeRendererToDisplaySize(renderer);
+        // 启用剪刀函数
+        renderer.setScissorTest(true);
+        // 渲染主视野
+        {
+          const aspect = setScissorForElement(view1Elem);
+
+          // 用计算出的aspect修改摄像机参数
+          camera.aspect = aspect;
+          camera.updateProjectionMatrix();
+          cameraHelper.update();
+
+          // 来原视野中不要绘制cameraHelper
+          cameraHelper.visible = false;
+
+          scene.background.set(0x000000);
+
+          // 渲染
+          renderer.render(scene, camera);
+        }
+        // 渲染第二台摄像机
+        {
+          const aspect = setScissorForElement(view2Elem);
+
+          // 调整aspect
+          camera2.aspect = aspect;
+          camera2.updateProjectionMatrix();
+
+          // 在第二台摄像机中绘制cameraHelper
+          cameraHelper.visible = true;
+
+          scene.background.set(0x000040);
+
+          renderer.render(scene, camera2);
+        }
+        // renderer.render(scene, camera);
+        requestAnimationFrame(render);
+      }
+      render();
+    </script>
+  </body>
+
+  </html>
+</body>
+
+</html>

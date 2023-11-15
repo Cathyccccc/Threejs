@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雾-对比</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .split {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+    }
+
+    .split>div {
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <div class="split">
+    <div id="view1" tabindex="1"></div>
+    <div id="view2" tabindex="2"></div>
+  </div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    // console.log(three);
+    // 在3D引擎里，雾通常是基于离摄像机的距离褪色至某种特定颜色的方式。
+    // 在three.js中添加雾是通过创建 Fog 或者 FogExp2 实例并设定scene的fog 属性。
+    // Fog 让你设定 near 和 far 属性，代表距离摄像机的距离.
+    // 任何物体比 near 近不会受到影响，任何物体比 far 远则完全是雾的颜色。
+    // 在 near 和 far 中间的物体，会从它们自身材料的颜色褪色到雾的颜色。
+    // 创建渲染器
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas }); // antialias: 抗锯齿
+    // 创建摄像机
+    const camera = new THREE.PerspectiveCamera(75, 2, 0.1, 10);
+    camera.position.z = 6; // camera距离变化时，雾也会发生变化
+    const camera2 = new THREE.PerspectiveCamera(75, 2, 0.1, 10);
+    camera2.position.z = 6; // camera距离变化时，雾也会发生变化
+    // 创建场景
+    const scene1 = new THREE.Scene();
+    const scene2 = new THREE.Scene();
+    // 创建雾
+    // 注意：雾是作用在 渲染的物体 上的，是物体颜色中每个像素计算的一部分。因此需要设定雾 和 场景的背景颜色为同一种颜色
+    {
+      const color = 0xFFFFFF;
+      const near = 5;
+      const far = 7;
+      scene1.fog = new THREE.Fog(color, near, far);
+      scene1.background = new THREE.Color(0xFFFFFF);
+    }
+    {
+      const color = 0xFFFFFF;
+      const density = 0.2;
+      scene2.fog = new THREE.FogExp2(color, density);
+      scene2.background = new THREE.Color(0xFFFFFF);
+    }
+    // 创建几何体
+    const objects = [];
+    const geometry = new THREE.BoxGeometry(1, 1, 4);
+    {
+      const material = new THREE.MeshBasicMaterial({ color: '#41c056' });
+      const cube = new THREE.Mesh(geometry, material);
+      scene1.add(cube);
+      // scene2.add(cube);
+      objects.push(cube);
+    }
+    {
+      const material = new THREE.MeshBasicMaterial({ color: '#41c056' });
+      const cube = new THREE.Mesh(geometry, material);
+      scene2.add(cube);
+      objects.push(cube);
+    }
+
+    const view1Elem = document.querySelector('#view1');
+    const view2Elem = document.querySelector('#view2');
+
+    function setScissorForElement(elem) {
+      const canvasRect = canvas.getBoundingClientRect();
+      const elemRect = elem.getBoundingClientRect();
+
+      // 计算canvas的尺寸
+      const right = Math.min(elemRect.right, canvasRect.right) - canvasRect.left;
+      const left = Math.max(0, elemRect.left - canvasRect.left);
+      const bottom = Math.min(elemRect.bottom, canvasRect.bottom) - canvasRect.top;
+      const top = Math.max(0, elemRect.top - canvasRect.top);
+
+      const width = Math.min(canvasRect.width, right - left);
+      const height = Math.min(canvasRect.height, bottom - top);
+
+      // 设置剪函数以仅渲染一部分场景
+      const positiveYUpBottom = canvasRect.height - bottom;
+      renderer.setScissor(left, positiveYUpBottom, width, height);
+      renderer.setViewport(left, positiveYUpBottom, width, height);
+
+      // 返回aspect
+      return width / height;
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+
+    function render(time) {
+      time *= 0.001;
+
+      resizeRendererToDisplaySize(renderer);
+      renderer.setScissorTest(true);
+      {
+        const aspect = setScissorForElement(view1Elem);
+        camera.aspect = aspect;
+        camera.updateProjectionMatrix();
+        renderer.render(scene1, camera);
+      }
+      {
+        const aspect = setScissorForElement(view2Elem);
+        camera2.aspect = aspect;
+        camera2.updateProjectionMatrix();
+        renderer.render(scene2, camera2);
+      }
+      const speed = time * 0.2;
+      objects.forEach(item => {
+        item.rotation.x = speed;
+        item.rotation.y = speed;
+      })
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  </script>
+</body>
+
+</html>

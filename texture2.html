@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>纹理的重复、偏移、旋转</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.js",
+        "lil-gui": "./three.js-master/examples/jsm/libs/lil-gui.module.min.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GUI } from 'lil-gui';
+    // console.log(THREE);
+    console.log(GUI);
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    const fov = 45;
+    const aspect = 2;
+    const near = 0.1;
+    const far = 500;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.z = 80;
+    const scene = new THREE.Scene();
+    const width = 10;
+    const height = 10;
+    const depth = 10;
+    const objects = [];
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+    const loader = new THREE.TextureLoader();
+
+    {
+      // 设置纹理repeat(纹理默认是不重复的)
+      const texture = loader.load('./three.js-master/manual/examples/resources/images/wall.jpg');
+      texture.wrapS = THREE.RepeatWrapping; // 横向包裹-重复
+      texture.wrapT = THREE.RepeatWrapping; // 纵向包裹-重复
+      const timesToRepeatHorizontally = 3; // 水平方向重复次数
+      const timesToRepeatVertically = 2; // 垂直方向重复次数
+      texture.repeat.set(timesToRepeatHorizontally, timesToRepeatVertically);
+      addObject(-30, 0, geometry, texture);
+    }
+
+    {
+      // 设置纹理offset（偏移以纹理自身为单位，因此当因为纹理重复使每个纹理变小时，偏移的距离也相应变小了）
+      const texture = loader.load('./three.js-master/manual/examples/resources/images/wall.jpg');
+      const offsetX = 0.5; // 纹理向左偏移50%个纹理
+      const offsetY = 0.25; // 纹理向下偏移25%个纹理
+      texture.offset.set(offsetX, offsetY);
+      addObject(-15, 0, geometry, texture);
+    }
+
+    {
+      // 设置纹理rotation
+      const texture = loader.load('./three.js-master/manual/examples/resources/images/wall.jpg');
+      texture.center.set(0.5, 0.5); // 将材质的中心设为50%，50%
+      const deg = 45;
+      texture.rotation = THREE.MathUtils.degToRad(deg); // 纹理旋转rotation以弧度为单位，因此角度要转换成弧度;degToRad将角度转为弧度的方法，由three.js的数学库MathUtils提供
+      addObject(0, 0, geometry, texture);
+    }
+
+    // 使用lil-gui手动控制纹理的重复、偏移、旋转
+    const gui = new GUI();
+    // 角度弧度来回转换工具
+    class DegRadHelper {
+      constructor(obj, prop) {
+        this.obj = obj;
+        this.prop = prop;
+      }
+      get value() {
+        return THREE.MathUtils.radToDeg(this.obj[this.prop]); // 使界面显示数值为角度deg而不是弧度rad
+      }
+      set value(v) {
+        this.obj[this.prop] = THREE.MathUtils.degToRad(v); // 界面设置的角度值传入进行设置时需要先转为弧度（rotation单位为弧度）
+      }
+    }
+    // lil-gui的枚举值是字符串形式，需要转成数字传给three.js
+    class StringToNumberHelper {
+      constructor(obj, prop) {
+        this.obj = obj;
+        this.prop = prop;
+      }
+      get value() {
+        return this.obj[this.prop];
+      }
+      set value(v) {
+        console.log(v)
+        this.obj[this.prop] = parseFloat(v);
+        console.log(this.obj, this.prop)
+      }
+    }
+
+    const wrapModes = {
+      'ClampToEdgeWrapping': THREE.ClampToEdgeWrapping,
+      'RepeatWrapping': THREE.RepeatWrapping,
+      'MirroredRepeatWrapping': THREE.MirroredRepeatWrapping,
+    };
+    // const wrapModes = [THREE.ClampToEdgeWrapping, THREE.RepeatWrapping, THREE.MirroredRepeatWrapping];
+    const texture = loader.load('./three.js-master/manual/examples/resources/images/wall.jpg');
+    function updateTexture() {
+      texture.needsUpdate = true;
+    }
+
+    {
+      gui.add(new StringToNumberHelper(texture, 'wrapS'), 'value', wrapModes).name('texture.wrapS').onChange(updateTexture);
+      gui.add(new StringToNumberHelper(texture, 'wrapT'), 'value', wrapModes).name('texture.wrapT').onChange(updateTexture);
+      const min = 0;
+      const max = 5;
+      const step = .01;
+      gui.add(texture.repeat, 'x', min, max, step).name('texture.repeat.x');
+      gui.add(texture.repeat, 'y', min, max, step).name('texture.repeat.y');
+      gui.add(texture.offset, 'x', -2, 2, step).name('texture.offset.x');
+      gui.add(texture.offset, 'y', -2, 2, step).name('texture.offset.y');
+      gui.add(texture.center, 'x', -0.5, 1.5, step).name('texture.center.x');
+      gui.add(texture.center, 'y', -0.5, 1.5, step).name('texture.center.y');
+      const deg = 360;
+      gui.add(new DegRadHelper(texture, 'rotation'), 'value', -deg, deg, step).name('texture.rotation');
+      addObject(25, 0, geometry, texture);
+    }
+
+    function addObject(x, y, geometry, texture) {
+      const material = new THREE.MeshBasicMaterial({
+        map: texture
+      })
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(x, y);
+      scene.add(mesh);
+      objects.push(mesh);
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+
+    function rotate(time) {
+      time *= 0.001;
+      if (resizeRendererToDisplaySize(renderer)) {
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+      const speed = time * 0.1;
+      objects.forEach((m) => {
+        m.rotation.x = speed;
+        m.rotation.y = speed;
+      })
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(rotate);
+    }
+    requestAnimationFrame(rotate);
+
+  </script>
+</body>
+
+</html>

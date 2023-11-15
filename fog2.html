@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>雾-控制</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.js",
+        "lil-gui": "./three.js-master/examples/jsm/libs/lil-gui.module.min.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GUI } from 'lil-gui';
+    // console.log(THREE);
+    // console.log(GUI);
+    // 创建渲染器
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas }); // antialias:抗锯齿
+    // 创建摄像机
+    const fov = 45;
+    const aspect = 2;
+    const near = 0.1;
+    const far = 100;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.z = 10;
+    // 创建场景
+    const scene = new THREE.Scene();
+    // 创建雾
+    {
+      const color = 'lightblue';
+      const near = 8;
+      const far = 11;
+      scene.fog = new THREE.Fog(color, near, far);
+      scene.background = new THREE.Color(color);
+    }
+    // 创建光照
+    {
+      const color = 0xFFFFFF;
+      const intensity = 1;
+      const light = new THREE.DirectionalLight(color, intensity);
+      light.position.set(0, 10, 20);
+      scene.add(light);
+    }
+    // 创建几何体
+    const objects = [];
+    const size = 2;
+    const geo = new THREE.BoxGeometry(size, size, size);
+    addObject(geo, -5, 0)
+    addObject(geo, 0, 0)
+    addObject(geo, 5, 0)
+    // 创建材质
+    function createMaterial() {
+      const material = new THREE.MeshPhongMaterial();
+      material.color.setRGB(Math.random(), Math.random(), Math.random());
+      return material;
+    }
+    // 将几何体网格对象添加到场景中
+    function addObject(geometry, x, y) {
+      const material = createMaterial();
+      const cube = new THREE.Mesh(geometry, material);
+      scene.add(cube);
+      cube.position.set(x, y);
+      objects.push(cube);
+    }
+    // 操作雾
+    class FogGUIHelper {
+      constructor(fog, backgroundColor) {
+        this.fog = fog;
+        this.backgroundColor = backgroundColor;
+      }
+      get near() {
+        return this.fog.near;
+      }
+      set near(v) {
+        this.fog.near = v;
+        this.fog.far = Math.max(this.fog.far, v); // 使near永远小于far
+      }
+      get far() {
+        return this.fog.far;
+      }
+      set far(v) {
+        this.fog.far = v;
+        this.fog.near = Math.min(this.fog.near, v);
+      }
+      get color() {
+        return `#${this.fog.color.getHexString()}`; // getHexString:获取Hex字符串（#开头的颜色字符串）
+      }
+      set color(hexString) {
+        this.fog.color.set(hexString); // 设置雾的颜色
+        this.backgroundColor.set(hexString); // 设置场景的颜色
+      }
+    }
+      const gui = new GUI();
+      const fogGUIHelper = new FogGUIHelper(scene.fog, scene.background);
+      gui.add(fogGUIHelper, 'near', 8, 11).listen();
+      gui.add(fogGUIHelper, 'far', 8, 11).listen();
+      gui.addColor(fogGUIHelper, 'color');
+
+    // 控制canvas像素大小(默认为300x150)
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+    // 渲染场景、相机
+    function render(time) {
+      time *= 0.001;
+      if (resizeRendererToDisplaySize(renderer)) {
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+      const speed = 0.5;
+      objects.forEach((item, index) => {
+        item.rotation.x = time + index * speed;
+        item.rotation.y = time + index * speed;
+      });
+      renderer.render(scene, camera);
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  </script>
+</body>
+
+</html>

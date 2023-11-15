@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>矩形区域光</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.js",
+        "rectAreaLightUniformsLib": "./three.js-master/examples/jsm/lights/RectAreaLightUniformsLib.js",
+        "rectAreaLightHelper": "./three.js-master/examples/jsm/helpers/RectAreaLightHelper.js",
+        "OrbitControls": "./three.js-master/examples/jsm/controls/OrbitControls.js",
+        "lil-gui": "./three.js-master/examples/jsm/libs/lil-gui.module.min.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { RectAreaLightUniformsLib } from 'rectAreaLightUniformsLib';
+    import { RectAreaLightHelper } from 'rectAreaLightHelper';
+    import { OrbitControls } from 'OrbitControls';
+    import { GUI } from 'lil-gui';
+    // console.log(THREE);
+    // console.log(RectAreaLightUniformsLib)
+    // console.log(RectAreaLightHelper)
+    // 6.矩形区域光
+    // 一个矩形区域的发射出来的光照，例如长条的日光灯或者天花板上磨砂玻璃透进来的自然光。
+    // RectAreaLight 只能影响 MeshStandardMaterial 和 MeshPhysicalMaterial
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    const fov = 45;
+    const aspect = 2;
+    const near = 0.1;
+    const far = 100;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.set(0, 10, 20);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+
+    // 控制相机
+    const controls = new OrbitControls(camera, canvas);
+    controls.target.set(0, 5, 0);
+    controls.update();
+
+    RectAreaLightUniformsLib.init(); // 使用矩形区域光需要引入RectAreaLightUniformsLib模块并进行初始化
+
+    const color = 0xffffff;
+    const intensity = 5;
+    const width = 12;
+    const height = 4;
+    const light = new THREE.RectAreaLight(color, intensity, width, height);
+    light.position.set(0, 10, 0);
+    light.rotation.x = THREE.MathUtils.degToRad(-90);
+    scene.add(light);
+    // 矩形区域光辅助工具
+    const helper = new RectAreaLightHelper(light);
+    scene.add(helper);
+
+    class ColorGUIHelper {
+      constructor(object, prop) {
+        this.object = object;
+        this.prop = prop;
+      }
+      get value() {
+        return `#${this.object[this.prop].getHexString()}`;
+      }
+      set value(hexString) {
+        this.object[this.prop].set(hexString);
+      }
+    }
+
+    class DegRadHelper {
+      constructor(object, prop) {
+        this.object = object;
+        this.prop = prop;
+      }
+      get value() {
+        return THREE.MathUtils.radToDeg(this.object[this.prop]);
+      }
+      set value(v) {
+        this.object[this.prop] = THREE.MathUtils.degToRad(v);
+      }
+    }
+
+    function makeXYZGUI(gui, vector3, name, onChangeFn) {
+      const folder = gui.addFolder(name);
+      folder.add(vector3, 'x', -10, 10).onChange(onChangeFn);
+      folder.add(vector3, 'z', -10, 10).onChange(onChangeFn);
+      folder.add(vector3, 'y', 0, 10).onChange(onChangeFn);
+      folder.open();
+    }
+
+    const gui = new GUI();
+    gui.addColor(new ColorGUIHelper(light, 'color'), 'value').name('color');
+    gui.add(light, 'intensity', 0, 10, 0.01);
+    gui.add(light, 'width', 0, 20);
+    gui.add(light, 'height', 0, 20);
+    gui.add(new DegRadHelper(light.rotation, 'x'), 'value', -180, 180).name('x rotation');
+    gui.add(new DegRadHelper(light.rotation, 'y'), 'value', -180, 180).name('y rotation');
+    gui.add(new DegRadHelper(light.rotation, 'z'), 'value', -180, 180).name('z rotation');
+    makeXYZGUI(gui, light.position, 'position');
+
+    {
+      const planeSize = 40;
+      const loader = new THREE.TextureLoader();
+      const texture = loader.load('./three.js-master/manual/examples/resources/images/checker.png');
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.magFilter = THREE.NearestFilter;
+      const repeats = planeSize / 2;
+      texture.repeat.set(repeats, repeats);
+
+      const planeGeo = new THREE.PlaneGeometry(planeSize, planeSize)
+      const planeMat = new THREE.MeshStandardMaterial({
+        map: texture,
+        side: THREE.DoubleSide,
+      });
+      const plane = new THREE.Mesh(planeGeo, planeMat);
+      plane.rotation.x = Math.PI / -2;
+      scene.add(plane);
+    }
+    {
+      const cubeSize = 4;
+      const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+      const cubeMat = new THREE.MeshStandardMaterial({ color: '#8AC' });
+      const cube = new THREE.Mesh(cubeGeo, cubeMat);
+      cube.position.set(cubeSize + 1, cubeSize / 2, 0);
+      scene.add(cube);
+    }
+    {
+      const sphereRadius = 3;
+      const sphereWidthDevisions = 32;
+      const sphereHeightDevisions = 16;
+      const sphereGeo = new THREE.SphereGeometry(sphereRadius, sphereWidthDevisions, sphereHeightDevisions);
+      const sphereMat = new THREE.MeshStandardMaterial({ color: '#CA8' });
+      const sphere = new THREE.Mesh(sphereGeo, sphereMat);
+      sphere.position.set(-sphereRadius - 1, sphereRadius + 2, 0);
+      scene.add(sphere);
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+
+    function render() {
+      if (resizeRendererToDisplaySize(renderer)) {
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+      renderer.render(scene, camera);
+      requestAnimationFrame(render);
+    }
+    render();
+  </script>
+</body>
+
+</html>

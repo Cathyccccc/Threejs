@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>材质</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <script src="./three.js-master/build/three.js"></script>
+  <canvas id="c"></canvas>
+  <script type="module">
+    console.log(THREE)
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({antialias: true, canvas});
+    const fov = 45;
+    const aspect = 2;
+    const near = 0.5;
+    const far = 1000;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.z = 100;
+    const scene = new THREE.Scene();
+    const color = 0xffffff;
+    const intensity = 1;
+    const light = new THREE.DirectionalLight(color, intensity);
+    light.position.set(-1, -2, 4);
+    scene.add(light);
+    const width = 8;
+    const height = 8;
+    const depth = 8;
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+    // const material = new THREE.MeshPhongMaterial({
+
+    // });
+    function createMaterial() {
+      // 创建材质的两种方式
+      // 1.在生成实例时进行配置
+      // const material = new THREE.MeshPhongMaterial({
+      //   color: 0xFF0000,
+      //   flatShading: true
+      // })
+      // 2.生成实例后配置
+      const material = new THREE.MeshPhongMaterial();
+      material.color.setHSL(0, 1, .5);
+      material.flatShading = true;
+      return material;
+    }
+    const mesh = new THREE.Mesh(geometry, createMaterial());
+    scene.add(mesh);
+    // 设置canvas缓冲绘图区大小为canvas实际大小
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+    function rotate(time) {
+      time *= 0.001;
+      if (resizeRendererToDisplaySize(renderer)) {
+        // 拉伸页面时保持物体比例不变
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+      mesh.rotation.x = time;
+      mesh.rotation.y = time;
+      renderer.render(scene, camera);
+      requestAnimationFrame(rotate);
+    }
+    requestAnimationFrame(rotate);
+  </script>
+</body>
+</html>

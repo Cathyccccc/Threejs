@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>three.js中的Geometry</title>
+  <style>
+    body {
+      margin: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three/build/three.module.js';
+    // 创建场景
+    const scene = new THREE.Scene();
+
+    // 创建相机
+    // const pov = 75;
+    // const aspect = 2;
+    const near = 1;
+    const far = 500;
+    const right = window.innerWidth / 2;
+    const top = window.innerHeight / 2;
+    // const camera = new THREE.PerspectiveCamera(pov, aspect, near, far);
+    const camera = new THREE.OrthographicCamera(-right, right, top, -top, near, far); // 定义摄像机视锥体(left, right, top, bottom, near, far)
+    camera.position.z = 50; // 设置相机位置
+
+    // 创建渲染器
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // 创建几何体
+    const width = 50;
+    const height = 50;
+    const depth = 50;
+    const widthSegments = 5;
+    const heightSegments = 5;
+    const depthSegments = 5;
+    // 1.立方体
+    const box = new THREE.BoxGeometry(width, height, depth, widthSegments, heightSegments, depthSegments);
+    // const boxMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // 添加材质
+    const boxMaterial = new THREE.MeshPhongMaterial({ color: 0x5C5CCD });
+    const cube = new THREE.Mesh(box, boxMaterial); // 创建网格对象
+    scene.add(cube); // 将网格对象添加到场景中
+
+    const group = new THREE.Group(); // 创建组（可以将多个网格对象划分为一组，再添加到场景中）
+    function makeInstance(geometry, color, x, y) {
+      const material = new THREE.MeshPhongMaterial({ color });
+      const mesh = new THREE.Mesh(geometry, material);
+      group.add(mesh);
+      mesh.position.x = x;
+      mesh.position.y = y;
+      return mesh;
+      // 几何体显示网格
+      // const wireframe = new THREE.WireframeGeometry(geometry);
+      // const line = new THREE.LineSegments(wireframe);
+      // line.material.depthTest = false;
+      // line.material.opacity = 0.25;
+      // line.material.transparent = true;
+      // group.add(line);
+      // line.position.x = x;
+      // line.position.y = y;
+      // return line;
+    }
+
+    // 2.胶囊体
+    const capsule = new THREE.CapsuleGeometry(20, 40, 16, 16); // radius:圆柱体半径, length:圆柱体长度, capSubdivisions:两头分别切分几段（截面圆）, radialSegments:每个截面圆分成几份
+    // 3.圆
+    const circle = new THREE.CircleGeometry(30, 12, 0, 3 * Math.PI / 2); // radius:半径, segments:由多少个三角形组成, thetaStart:起始绘制位置弧度（默认0）, thetaLength:绘制弧度（默认两个PI，相当于360度）
+    // 4.圆锥体
+    const cone = new THREE.ConeGeometry(20, 50, 8);
+    // 5.圆柱/圆台
+    const cylinder = new THREE.CylinderGeometry(20, 20, 50, 32); // radiusTop,radiusBottom,height,radiusSegments,heightSegments,openEnded,thetaStart,thetaLength
+    // 6.十二面几何体
+    const dodecahedron = new THREE.DodecahedronGeometry(30); // radius,detail:大于零时会增加点，不再是12面体（默认为0）
+    // 7.边缘几何体(作为BoxGeometry的辅助，查看边缘)
+    const edges = new THREE.EdgesGeometry(box); // BoxGeometry
+    const edgesMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+    const line = new THREE.LineSegments(edges, edgesMaterial);
+    scene.add(line);
+    // 8.挤压缓冲几何体（设置几何体的边缘为弧形，圆角）
+    const shape = new THREE.Shape();
+    const w = 60;
+    const h = 35;
+    shape.moveTo(-w / 2, -h / 2);
+    shape.lineTo(w / 2, -h / 2);
+    shape.lineTo(w / 2, h / 2);
+    shape.lineTo(-w / 2, h / 2);
+    shape.lineTo(-w / 2, -h / 2);
+    const options = {
+      steps: 2, // 沿挤出样条深度细分的点数
+      depth: 12, // 挤出形状的深度
+      bevelEnabled: true, // 挤出的形状是否斜角
+      bevelThickness: 8.0, // 原始形状上斜角的厚度
+      bevelSize: 7.9, // 挤出形状的大小（默认bevelThickness-0.1）（中间部分）
+      bevelOffset: 0, // 控制挤出形状的大小（整体）
+      bevelSegments: 10, // 挤出斜角划分为多少份
+    };
+    const extrude = new THREE.ExtrudeGeometry(shape, options); // shapes:形状或形状数组,options:参数对象
+    // 9.二十面缓冲几何体
+    const icosahedron = new THREE.IcosahedronGeometry(40); // radius,detail:默认值为0，大于0时会增加一些顶点
+    // 10.车削缓冲几何体(思考这个传入的点的坐标怎么计算？？？)
+    // const lathe = new THREE.LatheGeometry();
+    // 11.八面缓冲几何体
+    const octahedron = new THREE.OctahedronGeometry(30); // radius,detail
+    // 12.平面缓冲几何体
+    const plane = new THREE.PlaneGeometry(60, 60, 1, 1); // width,height,widthSegments,heightSegments
+    // 13.圆环缓冲几何体
+    const ring = new THREE.RingGeometry(20, 40, 32); // innerRadius,outerRadius,thetaSegments
+    // 14.形状缓冲几何体
+    const x = 0, y = 0;
+    const heartShape = new THREE.Shape();
+    heartShape.moveTo(x + 10, y + 10);
+    heartShape.bezierCurveTo(x + 10, y + 10, x + 8, y, x, y);
+    heartShape.bezierCurveTo(x - 12, y, x - 12, y + 14, x - 12, y + 14);
+    heartShape.bezierCurveTo(x - 12, y + 22, x - 6, y + 30.8, x + 10, y + 38);
+    heartShape.bezierCurveTo(x + 24, y + 30.8, x + 32, y + 22, x + 32, y + 14);
+    heartShape.bezierCurveTo(x + 32, y + 14, x + 32, y, x + 20, y);
+    heartShape.bezierCurveTo(x + 14, y, x + 10, y + 10, x + 10, y + 10);
+    const _shape = new THREE.ShapeGeometry(heartShape);
+    // 15.球缓冲几何体
+    const sphere = new THREE.SphereGeometry(40, 32, 32);
+    // 16.四面缓冲几何体
+    const tetrahedron = new THREE.TetrahedronGeometry(50); // radius,detail
+    // 17.圆环缓冲几何体  (radius:环面的半径，从环面的中心到管道横截面的中心;tube:管道半径;
+    // radialSegments:管道横截面分段数;tubularSegments:管道的分段数;arc:圆环的圆心角，默认2PI)
+    const torus = new THREE.TorusGeometry(35, 10, 16, 32);
+    // 18.圆环缓冲扭结几何体
+    // radius - 圆环的半径，默认值为1。
+    // tube — 管道的半径，默认值为0.4。
+    // tubularSegments — 管道的分段数量，默认值为64。
+    // radialSegments — 横截面分段数量，默认值为8。
+    // p — 这个值决定了几何体将绕着其旋转对称轴旋转多少次，默认值是2。
+    // q — 这个值决定了几何体将绕着其内部圆环旋转多少次，默认值是3。
+    const torusKnot = new THREE.TorusKnotGeometry(20, 8, 64, 16, 2, 3);
+    // 19.管道缓冲几何体
+    // path — Curve - 一个由基类Curve继承而来的3D路径。 Default is a quadratic bezier curve.
+    // tubularSegments — Integer - 组成这一管道的分段数，默认值为64。
+    // radius — Float - 管道的半径，默认值为1。
+    // radialSegments — Integer - 管道横截面的分段数目，默认值为8。
+    // closed — Boolean 管道的两端是否闭合，默认值为false。
+    // const tube = new THREE.TubeGeometry();
+    // 20.网格几何体
+    // const wireframe = new THREE.WireframeGeometry(geometry); // geometry
+
+    const meshes = [
+      makeInstance(capsule, 0xaa4488, -100, 0),
+      makeInstance(circle, 0x44aa88, -200, 0),
+      makeInstance(cone, 0x4488aa, -300, 0),
+      makeInstance(cylinder, 0xCD5C5C, -400, 0),
+      makeInstance(dodecahedron, 0xCD853F, 100, 0),
+      makeInstance(extrude, 0x853FCD, 200, 0),
+      makeInstance(icosahedron, 0x3FCD85, 300, 0),
+      makeInstance(octahedron, 0xBDB76B, 300, 100),
+      makeInstance(plane, 0xDAA520, 0, 100),
+      makeInstance(ring, 0x228B22, -100, 100),
+      makeInstance(_shape, 0xDC143C, -200, 100),
+      makeInstance(sphere, 0xDCDCDC, -300, 100),
+      makeInstance(tetrahedron, 0xA52A2A, -400, 100),
+      makeInstance(torus, 0x0000CD, 100, 100),
+      makeInstance(torusKnot, 0x00CED1, 200, 100),
+    ]
+    scene.add(group);
+
+    const color = 0xffffff;
+    const intensity = 1;
+    const light = new THREE.DirectionalLight(color, intensity);
+    light.position.set(-1, 2, 600);
+    scene.add(light); // 将平行光添加到场景中
+
+    function rotation(mesh, time) {
+      mesh.rotation.x = time;
+      mesh.rotation.y = time
+    }
+
+    function rotate(time) {
+      time *= 0.001;
+      rotation(cube, time);
+      rotation(line, time);
+      meshes.forEach((m) => {
+        rotation(m, time);
+      })
+      renderer.render(scene, camera); // 渲染器渲染场景
+      requestAnimationFrame(rotate);
+    }
+    requestAnimationFrame(rotate);
+
+  </script>
+</body>
+
+</html>

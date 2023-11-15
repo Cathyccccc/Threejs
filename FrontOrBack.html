@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPU的精度问题</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.js",
+        "OrbitControls": "./three.js-master/examples/jsm/controls/OrbitControls.js",
+        "lil-gui": "./three.js-master/examples/jsm/libs/lil-gui.module.min.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'OrbitControls';
+    import { GUI } from 'lil-gui';
+    // console.log(THREE)
+    // console.log(OrbitControls)
+    // console.log(GUI)
+    // 示例证明：GPU没有足够的精度来决定哪个像素在前哪个在后。（使用logarithmicDepthBuffer解决该问题）
+    // 解决方案：
+    // 一、在创建渲染器时，配置 logarithmicDepthBuffer: true 不建议使用该方法，存在移动设备是否支持问题，而且会大大降低运行速度。
+    // 二、选择合适的near和far，和想要模拟的场景配置，near不能太小，far不能太大。
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      canvas,
+      // logarithmicDepthBuffer: true, // 告诉three.js使用不同的方法计算像素的前后关系(解决球体前后面渲染不正确，图像渲染来回重叠交错问题)
+    });
+    // 创建摄像机
+    const near = 0.1;
+    // const near = 0.00001; // 把 near 设置成0.00001，用来观察GPU的精度问题
+    const camera = new THREE.PerspectiveCamera(45, 2, near, 100); // fov, aspect, near, far
+    camera.position.set(0, 10, 20);
+    // 控制相机
+    const controls = new OrbitControls(camera, canvas);
+    controls.target.set(0, 5, 0); // ???这个什么意思
+    controls.update();
+    // 创建场景
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x000000);
+    // 创建光照
+    const light = new THREE.PointLight(0xffffff, 1); // color, intensity
+    light.position.set(0, 10, 0);
+    scene.add(light);
+    // 摄像机参数控制工具
+    class MinMaxGUIHelper {
+      constructor(obj, minProp, maxProp, minDif) {
+        this.obj = obj;
+        this.minProp = minProp;
+        this.maxProp = maxProp;
+        this.minDif = minDif;
+      }
+      get min() {
+        return this.obj[this.minProp];
+      }
+      set min(v) {
+        this.obj[this.minProp] = v;
+        this.obj[this.maxProp] = Math.max(this.obj[this.maxProp], v + this.minDif); // 使near值永远小于far值，near最少比far小一个minDif
+      }
+      get max() {
+        return this.obj[this.maxProp];
+      }
+      set max(v) {
+        this.obj[this.maxProp] = v;
+        this.min = this.min;  // 这将调用min的setter
+      }
+    }
+    function updateCamera() {
+      camera.updateProjectionMatrix();
+    }
+    const gui = new GUI();
+    gui.add(camera, 'fov', 1, 180).onChange(updateCamera);
+    const minMaxGUIHelper = new MinMaxGUIHelper(camera, 'near', 'far', 0.1);
+    gui.add(minMaxGUIHelper, 'min', 0.1, 50, 0.1).name('near').onChange(updateCamera);
+    // gui.add(minMaxGUIHelper, 'min', 0.00001, 50, 0.00001).name('near').onChange(updateCamera);
+    gui.add(minMaxGUIHelper, 'max', 0.1, 100, 0.1).name('far').onChange(updateCamera);
+
+    // 创建平面
+    {
+      const loader = new THREE.TextureLoader();
+      const texture = loader.load('./three.js-master/manual/examples/resources/images/checker.png');
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.magFilter = THREE.NearestFilter;
+      texture.repeat.set(20, 20);
+
+      const planeGeo = new THREE.PlaneGeometry(40, 40);
+      const planeMat = new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide });
+      const plane = new THREE.Mesh(planeGeo, planeMat);
+      plane.rotation.x = Math.PI / 2;
+      scene.add(plane);
+    }
+    // 创建几何体
+    {
+      const sphereRadius = 3;
+      const sphereWidthDivisions = 32;
+      const sphereHeightDivisions = 16;
+      const sphereGeo = new THREE.SphereGeometry(sphereRadius, sphereWidthDivisions, sphereHeightDivisions);
+      const numSpheres = 20;
+      for (let i = 0; i < numSpheres; ++i) {
+        const sphereMat = new THREE.MeshPhongMaterial();
+        sphereMat.color.setHSL(i * .73, 1, 0.5);
+        const mesh = new THREE.Mesh(sphereGeo, sphereMat);
+        mesh.position.set(-sphereRadius - 1, sphereRadius + 2, i * sphereRadius * -2.2);
+        scene.add(mesh);
+      }
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+
+    function render() {
+      if (resizeRendererToDisplaySize(renderer)) {
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix(); // 相机属性更改后更新相机
+      }
+      renderer.render(scene, camera);
+      requestAnimationFrame(render);
+    }
+    render();
+  </script>
+</body>
+
+</html>

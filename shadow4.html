@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>点光源的阴影</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.min.js",
+        "OrbitControls": "./three.js-master/examples/jsm/controls/OrbitControls.js",
+        "lil-gui": "./three.js-master/examples/jsm/libs/lil-gui.module.min.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'OrbitControls';
+    import { GUI } from 'lil-gui';
+    // console.log(THREE)
+    // console.log(OrbitControls)
+    // console.log(GUI)
+    // 本文档演示：点光源（PointLight）的阴影
+    // 如何创建光照的阴影？分为三步 A B C（记住）
+    // 创建渲染器
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    // A.设置渲染器中的阴影属性
+    renderer.shadowMap.enabled = true;
+    // 创建摄像机
+    const fov = 45;
+    const aspect = 2;  // canvas 的默认宽高 300:150
+    const near = 0.1;
+    const far = 100;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.set(0, 10, 20);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('black');
+
+    // 控制相机
+    const controls = new OrbitControls(camera, canvas);
+    controls.target.set(0, 5, 0);
+    controls.update();
+
+    // 创建光照
+    const color = 0xFFFFFF;
+    const intensity = 1;
+    // 3.方向光(从一个无限大的平面内，发射出全部相互平行的光线)
+    const light = new THREE.PointLight(color, intensity);
+    // B.设置光能投射阴影
+    light.castShadow = true;
+    light.position.set(0, 10, 0);
+    scene.add(light);
+    const helper = new THREE.PointLightHelper(light);
+    scene.add(helper);
+
+    // 使用lil-gui手动定义光照颜色
+    class ColorGUIHelper {
+      constructor(object, prop) {
+        this.object = object;
+        this.prop = prop;
+      }
+      get value() {
+        return `#${this.object[this.prop].getHexString()}`;
+      }
+      set value(hexString) {
+        this.object[this.prop].set(hexString);
+      }
+    }
+
+    class DegRadHelper {
+      constructor(object, prop) {
+        this.object = object;
+        this.prop = prop;
+      }
+      get value() {
+        return THREE.MathUtils.radToDeg(this.object[this.prop])
+      }
+      set value(v) {
+        this.object[this.prop] = THREE.MathUtils.degToRad(v)
+      }
+    }
+
+    function makeXYZGUI(gui, vector3, name, onChangeFn) {
+      const folder = gui.addFolder(name);
+      folder.add(vector3, 'x', -10, 10).onChange(onChangeFn);
+      folder.add(vector3, 'y', 0, 10).onChange(onChangeFn);
+      folder.add(vector3, 'z', -10, 10).onChange(onChangeFn);
+      folder.open();
+    }
+
+    function updateLight() {
+      helper.update();
+    }
+    updateLight();
+
+    const gui = new GUI();
+    gui.addColor(new ColorGUIHelper(light, 'color'), 'value').name('color');
+    gui.add(light, 'intensity', 0, 2, 0.01);
+    gui.add(light, 'distance', 0, 40).onChange(updateLight);
+    makeXYZGUI(gui, light.position, 'position');
+
+    // 创建平面
+    // 设置平面纹理
+    {
+      const planeSize = 40;
+
+      const loader = new THREE.TextureLoader();
+      const texture = loader.load('https://threejs.org/manual/examples/resources/images/checker.png');
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.magFilter = THREE.NearestFilter;
+      const repeats = planeSize / 2;
+      texture.repeat.set(repeats, repeats);
+
+      const planeGeo = new THREE.PlaneGeometry(planeSize, planeSize);
+      const planeMat = new THREE.MeshPhongMaterial({
+        map: texture,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(planeGeo, planeMat);
+      // C.设置场景中的网格（地面）是否能被投射阴影（或投射阴影）
+      mesh.receiveShadow = true;
+      mesh.rotation.x = Math.PI * -.5;
+      scene.add(mesh);
+    }
+    // 创建一个立方体房间
+    {
+      const cubeSize = 30;
+      const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+      const cubeMat = new THREE.MeshPhongMaterial({
+        color: "#CCC",
+        side: THREE.BackSide,
+      });
+      const mesh = new THREE.Mesh(cubeGeo, cubeMat);
+      mesh.receiveShadow = true;
+      mesh.position.set(0, cubeSize / 2 - 0.1, 0);
+      scene.add(mesh);
+    }
+
+    // 创建球体
+    // C.对于球体和立方体，需要设置他们都能投射阴影或者被投射阴影
+    // mesh.castShadow = true;
+    // mesh.receiveShadow = true;
+    {
+      const sphereRadius = 3;
+      const sphereWidthDivisions = 32;
+      const sphereHeightDivisions = 16;
+      const sphereGeo = new THREE.SphereGeometry(sphereRadius, sphereWidthDivisions, sphereHeightDivisions);
+      const sphereMat = new THREE.MeshPhongMaterial({ color: '#CA8' });
+      const mesh = new THREE.Mesh(sphereGeo, sphereMat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.position.set(-sphereRadius - 1, sphereRadius + 2, 0);
+      scene.add(mesh);
+    }
+    {
+      const cubeSize = 4;
+      const cubeGeo = new THREE.BoxGeometry(cubeSize, cubeSize, cubeSize);
+      const cubeMat = new THREE.MeshPhongMaterial({ color: '#8AC' });
+      const mesh = new THREE.Mesh(cubeGeo, cubeMat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.position.set(cubeSize + 1, cubeSize / 2, 0);
+      scene.add(mesh);
+    }
+
+    class MinMaxGUIHelper {
+      constructor(obj, minProp, maxProp, minDif) {
+        this.obj = obj;
+        this.minProp = minProp;
+        this.maxProp = maxProp;
+        this.minDif = minDif;
+      }
+      get min() {
+        return this.obj[this.minProp];
+      }
+      set min(v) {
+        this.obj[this.minProp] = v;
+        this.obj[this.maxProp] = Math.max(this.obj[this.maxProp], v + this.minDif); // 使near值永远小于far值，near最少比far小一个minDif
+      }
+      get max() {
+        return this.obj[this.maxProp];
+      }
+      set max(v) {
+        this.obj[this.maxProp] = v;
+        this.min = this.min;  // 这将调用min的setter
+      }
+    }
+
+    {
+      const folder = gui.addFolder('Shadow Camera');
+      folder.open();
+      const minMaxGUIHelper = new MinMaxGUIHelper(light.shadow.camera, 'near', 'far', 0.1);
+      folder.add(minMaxGUIHelper, 'min', 0.1, 50, 0.1).name('near').onChange(updateLight);
+      folder.add(minMaxGUIHelper, 'max', 0.1, 50, 0.1).name('far').onChange(updateLight);
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+    function render(time) {
+      time *= 0.001;
+      if (resizeRendererToDisplaySize(renderer)) {
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+      renderer.render(scene, camera);
+      requestAnimationFrame(render); // 这里必须调用requestAnimationFrame才能渲染出平面plane
+    }
+    requestAnimationFrame(render);
+
+  </script>
+</body>
+
+</html>

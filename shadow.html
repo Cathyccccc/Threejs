@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>假阴影</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    // console.log(THREE);
+    // 同时创建阴影平面网格和球体网格，移动球体，阴影也一并移动
+    // 创建渲染器
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    // 创建相机
+    const fov = 45;
+    const aspect = 2;
+    const near = 0.1;
+    const far = 100;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.set(0, 10, 20);
+    camera.lookAt(0, 0, 0);
+    // 创建场景
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('white');
+    // 创建平面
+    const loader = new THREE.TextureLoader();
+    {
+      const planeSize = 40;
+      const texture = loader.load('./three.js-master/manual/examples/resources/images/checker.png');
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.wrapT = THREE.RepeatWrapping;
+      texture.repeat.set(planeSize / 2, planeSize / 2);
+      texture.magFilter = THREE.NearestFilter;
+      const planeGeo = new THREE.PlaneGeometry(planeSize, planeSize);
+      const planeMat = new THREE.MeshPhongMaterial({ map: texture, side: THREE.DoubleSide });
+      planeMat.color.setRGB(1.5, 1.5, 1.5); // 棋盘纹理的颜色倍增 1.5，1.5，1.5。 也就是说纹理原本的颜色是 0x808080 和 0xC0C0C0，是灰色和浅灰色，现在灰色和浅灰色乘以 1.5 将得到白色和浅灰色的棋盘。
+      const plane = new THREE.Mesh(planeGeo, planeMat);
+      plane.rotation.x = Math.PI / 2;
+      scene.add(plane);
+    }
+    // 加入阴影贴图
+    const shadowTexture = loader.load("./three.js-master/manual/examples/resources/images/roundshadow.png");
+    const sphereShadowBases = [];
+
+    function createShadowMesh(shadowGeo, sphereRadius) {
+      const shadowMat = new THREE.MeshBasicMaterial({
+        map: shadowTexture,
+        transparent: true, // so we can see the ground
+        depthWrite: false, // so we don't have to sort
+      });
+      const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+      shadowMesh.position.y = 0.001; // so we're above the ground slightly
+      shadowMesh.rotation.x = Math.PI * -0.5;
+      const shadowSize = sphereRadius * 4;
+      shadowMesh.scale.set(shadowSize, shadowSize, shadowSize);
+      return shadowMesh;
+    }
+
+    function createSphereMesh(sphereGeo, h, sphereRadius) {
+      const sphereMat = new THREE.MeshPhongMaterial();
+      sphereMat.color.setHSL(h, 1, 0.75);
+      const sphereMesh = new THREE.Mesh(sphereGeo, sphereMat);
+      sphereMesh.position.set(0, sphereRadius + 2, 0);
+      return sphereMesh;
+    }
+    // 创建15个球体+阴影
+    function createSphereAndShadow() {
+      const planeSize = 1;
+      const shadowGeo = new THREE.PlaneGeometry(planeSize, planeSize);
+      // 创建球体
+      const sphereRadius = 1;
+      const sphereWidthDivisions = 32;
+      const sphereHeightDivisions = 16;
+      const sphereGeo = new THREE.SphereGeometry(sphereRadius, sphereWidthDivisions, sphereHeightDivisions);
+      const numSpheres = 15;
+      for (let i = 0; i < numSpheres; ++i) {
+        // make a base for the shadow and the sphere
+        // so they move together.
+        const base = new THREE.Object3D();
+        scene.add(base);
+        const shadowMesh = createShadowMesh(shadowGeo, sphereRadius);
+        const u = i / numSpheres;
+        const sphereMesh = createSphereMesh(sphereGeo, u, sphereRadius);
+        base.add(shadowMesh);
+        base.add(sphereMesh);
+        sphereShadowBases.push({
+          base,
+          sphereMesh,
+          shadowMesh,
+          y: sphereMesh.position.y,
+        });
+      }
+    }
+    createSphereAndShadow();
+    // 创建光照
+    {
+      // 半球光
+      const skyColor = 0xb1e1ff; // light blue
+      const groundColor = 0xb97a20; // brownish orange
+      const intensity = 0.25;
+      const light = new THREE.HemisphereLight(skyColor, groundColor, intensity);
+      scene.add(light);
+    }
+    {
+      // 方向光
+      const color = 0xffffff;
+      const intensity = 0.75;
+      const light = new THREE.DirectionalLight(color, intensity);
+      light.position.set(0, 10, 5);
+      light.target.position.set(-5, 0, 0);
+      scene.add(light);
+      scene.add(light.target);
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+
+    function render(time) {
+      time *= 0.001;
+      if (resizeRendererToDisplaySize(renderer)) {
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+      sphereShadowBases.forEach((sphereShadowBase, ndx) => {
+        const { base, sphereMesh, shadowMesh, y } = sphereShadowBase;
+
+        // u is a value that goes from 0 to 1 as we iterate the spheres
+        const u = ndx / sphereShadowBases.length;
+
+        // compute a position for the base. This will move
+        // both the sphere and its shadow
+        const speed = time * .2;
+        const angle = speed + u * Math.PI * 2 * (ndx % 1 ? 1 : -1);
+        const radius = Math.sin(speed - ndx) * 10;
+        base.position.set(Math.cos(angle) * radius, 0, Math.sin(angle) * radius); // 每个球体，阴影以及 base，让它们在 XZ 平面上移动
+
+        // yOff is a value that goes from 0 to 1
+        const yOff = Math.abs(Math.sin(time * 2 + ndx)); // 使用Math.abs(Math.sin(time))将球体上下移动，这样会带来一个类似弹性的动画
+        // move the sphere up and down
+        sphereMesh.position.y = y + THREE.MathUtils.lerp(-2, 2, yOff); // lerp(x, y, t) 返回给定区间的线性插值linearly interpolated结果。t = 0 将会返回 x，t = 1 将会返回 y
+        // fade the shadow as the sphere goes up
+        shadowMesh.material.opacity = THREE.MathUtils.lerp(1, .25, yOff); // 设置了阴影材质的不透明度，与球体的高度相关
+      });
+      renderer.render(scene, camera);
+      requestAnimationFrame(render);
+    }
+    requestAnimationFrame(render);
+  </script>
+</body>
+
+</html>

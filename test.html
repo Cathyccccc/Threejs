@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>My first three.js app</title>
+  <style>
+    body {
+      margin: 0;
+    }
+  </style>
+</head>
+
+<body>
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three/build/three.module.js';
+
+    // Our Javascript will go here.
+    const scene = new THREE.Scene(); // 创建场景（Scene）
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000); // 创建透视相机（视野角度，长宽比，近截面，远截面）
+    const renderer = new THREE.WebGLRenderer(); // 创建渲染器
+    renderer.setSize(window.innerWidth, window.innerHeight); // 设置渲染器大小（渲染区域）
+    document.body.appendChild(renderer.domElement); // 渲染元素放置到document中
+
+    const geometry = new THREE.BoxGeometry(1, 1, 1); // 创建一个立方体对象（Geometry）
+    const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 }); // 设置材质（Material），使用十六进制设置颜色color
+    const cube = new THREE.Mesh(geometry, material); // 创建网格对象（网格包含几何体和作用在几何体上的材质）
+    scene.add(cube); // 将网格对象添加到场景中，坐标（0，0，0）
+
+    camera.position.z = 5; // 将摄像机向外移动（避免摄像机和物体重合）
+
+    function animate() {
+      requestAnimationFrame(animate); // 设置渲染帧动画（当用户切换到其它的标签页时，它会暂停，因此不会浪费用户宝贵的处理器资源，也不会损耗电池的使用寿命）
+      // 设置旋转
+      cube.rotation.x += 0.01;
+      cube.rotation.y += 0.01;
+      renderer.render(scene, camera); // 渲染
+    }
+    animate();
+  </script>
+</body>
+
+</html>

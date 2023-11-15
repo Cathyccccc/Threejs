@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>图元</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <script type="importmap">
+		{
+			"imports": {
+				"three": "./three.js-master/build/three.module.js",
+        "FontLoader": "./three.js-master/examples/jsm/loaders/FontLoader.js"
+			}
+		}
+	</script>
+  <script type="module">
+    // import * as THREE from 'https://unpkg.com/three/build/three.module.js';
+    import * as THREE from 'three';
+    import { TextGeometry } from './three.js-master/examples/jsm/geometries/TextGeometry.js';
+    import { FontLoader } from 'FontLoader';
+    // console.log(TextGeometry)
+    // 创建渲染器
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    // 创建摄像机
+    const fov = 40; // 摄像机视锥体的视野角度
+    const aspect = 2;
+    const near = 0.1;
+    const far = 1000;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.z = 120;
+    // 创建场景
+    const scene = new THREE.Scene();
+    scene.backgroud = new THREE.Color(0xAAAAAA);
+    // 创建灯光
+    const color = 0xFFFFFF;
+    const intensity = 1;
+    const light = new THREE.DirectionalLight(color, intensity);
+    light.position.set(-1, -2, 4);
+    scene.add(light);
+    // 将物体添加到场景
+    const objects = [];
+    const spread = 15;
+    function addObject(x, y, obj) {
+      obj.position.x = x * spread;
+      obj.position.y = y * spread;
+      scene.add(obj);
+      objects.push(obj);
+    }
+    // 创建随机颜色材质
+    function createMaterial() {
+      const material = new THREE.MeshPhongMaterial({
+        side: THREE.DoubleSide, // 渲染哪一面——双面
+      });
+      const hue = Math.random(); // 颜色
+      const saturation = 1; // 饱和度
+      const luminance = 0.5; // 亮度
+      material.color.setHSL(hue, saturation, luminance);
+      return material;
+    }
+    // 给几何体添加材质
+    function addSolidGeometry(x, y, geometry) {
+      const mesh = new THREE.Mesh(geometry, createMaterial());
+      addObject(x, y, mesh);
+    }
+    // 创建几何体
+    const width = 8;
+    const height = 8;
+    const depth = 8;
+    const geometry = new THREE.BoxGeometry(width, height, depth);
+    addSolidGeometry(-2, -2, geometry);
+    // 添加字体
+    {
+      const loader = new FontLoader();
+      // console.log(FontLoader)
+      function loadFont(url) {
+        return new Promise((resolve, reject) => {
+          loader.load(url, resolve, undefined, reject); // 这几个参数意义？？？
+        })
+      }
+      // 生成字体
+      async function doit() {
+        const font = await loadFont('./three.js-master/examples/fonts/helvetiker_bold.typeface.json');
+        const geometry = new TextGeometry('Three.js', {
+          font: font, // 字体包
+          size: 3.0, // 字体大小
+          height: .8, // 挤出文本的厚度
+          curveSegments: 12, // 曲线上点的数量
+          bevelEnabled: true, // 是否开启斜角
+          bevelThickness: .2, // 文本上斜角的深度
+          bevelSize: .3, // 斜角与原始文本轮廓之间的延伸距离
+          bevelSegments: 5, // 斜角的分段数
+        });
+        const mesh = new THREE.Mesh(geometry, createMaterial());
+        geometry.computeBoundingBox(); // 计算当前几何体的的边界矩形
+        geometry.boundingBox.getCenter(mesh.position).multiplyScalar(-1); // ??? boundingBox:当前 bufferGeometry 的外边界矩形
+        // Three.js 创建的文字的旋转中心在左边。 变通的方法是要求 Three.js 计算几何体的边界框。
+        // 然后我们可以对边界框调用 getCenter，将网格位置对象传给它。 getCenter 将盒子的中心值复制进位置对象。
+        // 同时它也返回位置对象，这样我们就可以调用 multiplyScalar(-1) 来放置整个对象，这样对象的旋转中心就是对象的中心了。
+
+        const parent = new THREE.Object3D(); // 三维物体构造器
+        parent.add(mesh); // 添加子对象
+
+        addObject(-1, -1, parent); // 将对象添加到场景
+      }
+      doit();
+    }
+    // Points
+    {
+      const radius = 7;
+      const widthSegments = 12;
+      const heightSegments = 8;
+      const geometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments);
+      const material = new THREE.PointsMaterial({
+        color: 'red',
+        size: 1,     // in world units
+      });
+      const points = new THREE.Points(geometry, material);
+      addObject(0, 0, points);
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+
+    function rotate(time) {
+      time *= 0.001; // 将时间转为秒
+
+      if (resizeRendererToDisplaySize(renderer)) {
+        // 维持立方体，改变窗口大小时不会被拉伸
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight; // 设置相机的宽高比
+        camera.updateProjectionMatrix(); // 使camera改变的属性生效
+      }
+      objects.forEach((m) => {
+        m.rotation.x = time;
+        m.rotation.y = time;
+      })
+      renderer.render(scene, camera);
+      requestAnimationFrame(rotate);
+    }
+    requestAnimationFrame(rotate);
+  </script>
+</body>
+
+</html>

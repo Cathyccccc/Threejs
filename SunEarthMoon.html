@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>太阳地球月亮</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.js", // 千万不要多加逗号
+        "lil-gui": "/three.js-master/examples/jsm/libs/lil-gui.module.min.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { GUI } from 'lil-gui';
+    // console.log(GUI)
+    // 创建渲染器
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    // 创建相机（透视）
+    const fov = 45;
+    const aspect = 2;
+    const near = 0.1;
+    const far = 500;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.set(0, 50, 0); // 摄像机自身的位置
+    camera.up.set(0, 0, -1); // 摄像机顶部朝向（z轴正方向）？？？
+    camera.lookAt(0, 0, 0); // 摄像机看向哪个位置
+    // 创建场景
+    const scene = new THREE.Scene();
+    scene.backgroud = new THREE.Color(0xAAAAAA);
+    // 创建灯光（点光源）
+    {
+      const color = 0xffffff;
+      const intensity = 3;
+      const light = new THREE.PointLight(color, intensity); // 点光源：从一个点向各个方向发射的光源
+      scene.add(light);
+      // const ambientLight = new THREE.AmbientLight(color, 1); // 为什么太阳变成了白色？？？
+      // ambientLight.position.set(-1, 100, 40);
+      // scene.add(ambientLight);
+    }
+
+    // 要更新旋转角度的对象数组
+    const objects = [];
+
+    // 一球多用
+    const radius = 1;
+    const widthSegments = 6;
+    const heightSegments = 6;
+    const sphereGeometry = new THREE.SphereGeometry(radius, widthSegments, heightSegments);
+    // 创建球体-太阳
+    const sunMaterial = new THREE.MeshPhongMaterial({ emissive: 0xffff00 }); // emissive:材质的放射颜色
+    const sunMesh = new THREE.Mesh(sphereGeometry, sunMaterial);
+    sunMesh.scale.set(5, 5, 5); // 扩大太阳的大小
+    // scene.add(sunMesh);
+    objects.push(sunMesh);
+    // 创建球体-地球
+    const earthMaterial = new THREE.MeshPhongMaterial({
+      color: 0x2233ff,
+      emissive: 0x112244,
+    });
+    const earthMesh = new THREE.Mesh(sphereGeometry, earthMaterial);
+    // earthMesh.position.x = 10; // 将地球定位在太阳左边？？？10个单位
+    // scene.add(earthMesh); // 地球自转
+    // sunMesh.add(earthMesh); // 地球绕着太阳转（由于前面sunMesh扩大了5倍，这里地球和地球到太阳的距离都扩大了5倍）
+    objects.push(earthMesh);
+    const earthOrbit = new THREE.Object3D();
+    earthOrbit.position.x = 10;
+    earthOrbit.add(earthMesh);
+    objects.push(earthOrbit); // 月球绕着地球转
+    // 创建球体-月球
+
+    const moonMaterial = new THREE.MeshPhongMaterial({ color: 0x888888, emissive: 0x222222 });
+    const moonMesh = new THREE.Mesh(sphereGeometry, moonMaterial);
+    // moonMesh.position.x = 2;
+    moonMesh.scale.set(.5, .5, .5);
+    // earthOrbit.add(moonMesh);
+    // objects.push(moonMesh);
+    const moonOrbit = new THREE.Object3D();
+    moonOrbit.position.x = 2;
+    moonOrbit.add(moonMesh);
+    earthOrbit.add(moonOrbit);
+    objects.push(moonOrbit);
+    // 解决地球和地球到太阳距离扩大5倍的问题——创建新的场景图节点，将太阳和地球作为该节点的子节点
+    // 创建新的场景图节点
+    const solarSystem = new THREE.Object3D(); // 没有材质material和几何体geometry，只代表一个局部空间
+    scene.add(solarSystem);
+    objects.push(solarSystem); // 地球绕着太阳转
+    solarSystem.add(sunMesh);
+    solarSystem.add(earthOrbit);
+
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+    function rotate(time) {
+      time *= 0.001;
+      if (resizeRendererToDisplaySize(renderer)) {
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+      objects.forEach((item) => {
+        // item.rotation.x = time;
+        item.rotation.y = time;
+        // 为球体添加坐标轴（x红，y绿，z蓝）
+        // const axes = new THREE.AxesHelper();
+        // axes.material.depthTest = false; // 避免被自身几何体遮盖
+        // axes.renderOrder = 1; // 避免被其他几何体遮盖
+        // item.add(axes); // 将坐标轴添加到网格对象
+      })
+      renderer.render(scene, camera);
+      requestAnimationFrame(rotate);
+    }
+    requestAnimationFrame(rotate);
+
+    class AxisGridHelper {
+      constructor(node, units = 10) {
+        const axes = new THREE.AxesHelper();
+        axes.material.depthTest = false;
+        axes.renderOrder = 2; // 在网格渲染之后再渲染
+        node.add(axes);
+
+        const grid = new THREE.GridHelper(units, units);
+        grid.material.depthTest = false;
+        grid.renderOrder = 1;
+        node.add(grid);
+
+        this.grid = grid;
+        this.axes = axes;
+        this.visible = false;
+      }
+      get visible() {
+        return this._visible;
+      }
+      set visible(v) {
+        this._visible = v;
+        this.grid.visible = v;
+        this.axes.visible = v;
+      }
+    }
+    const gui = new GUI();
+
+    function makeAxisGrid(node, label, units) {
+      const helper = new AxisGridHelper(node, units);
+      gui.add(helper, 'visible').name(label);
+    }
+
+    makeAxisGrid(solarSystem, 'solarSystem', 25);
+    makeAxisGrid(sunMesh, 'sunMesh');
+    makeAxisGrid(earthOrbit, 'earthOrbit');
+    makeAxisGrid(earthMesh, 'earthMesh');
+    makeAxisGrid(moonOrbit, 'moonOrbit');
+    makeAxisGrid(moonMesh, 'moonMesh');
+  </script>
+</body>
+
+</html>

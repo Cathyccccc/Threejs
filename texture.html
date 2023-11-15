@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>纹理</title>
+  <style>
+    html,
+    body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #c {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./three.js-master/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    // console.log(THREE);
+    // 创建渲染器
+    const canvas = document.querySelector('#c');
+    const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
+    // 创建摄像机
+    const fov = 45;
+    const aspect = 2;
+    const near = 0.1;
+    const far = 500;
+    const camera = new THREE.PerspectiveCamera(fov, aspect, near, far);
+    camera.position.z = 100;
+    // 创建场景
+    const scene = new THREE.Scene();
+    // 创建几何体
+    const objects = [];
+    const geometry = new THREE.BoxGeometry(10, 10, 10);
+    const loader = new THREE.TextureLoader();
+    {
+      const material = new THREE.MeshBasicMaterial({
+        map: loader.load('./three.js-master/manual/examples/resources/images/wall.jpg')
+      });
+      addObject(0, 0, geometry, material);
+    }
+    {
+      const materials = [
+        new THREE.MeshBasicMaterial({ map: loader.load('./three.js-master/manual/examples/resources/images/flower-1.jpg') }),
+        new THREE.MeshBasicMaterial({ map: loader.load('./three.js-master/manual/examples/resources/images/flower-2.jpg') }),
+        new THREE.MeshBasicMaterial({ map: loader.load('./three.js-master/manual/examples/resources/images/flower-3.jpg') }),
+        new THREE.MeshBasicMaterial({ map: loader.load('./three.js-master/manual/examples/resources/images/flower-4.jpg') }),
+        new THREE.MeshBasicMaterial({ map: loader.load('./three.js-master/manual/examples/resources/images/flower-5.jpg') }),
+        new THREE.MeshBasicMaterial({ map: loader.load('./three.js-master/manual/examples/resources/images/flower-6.jpg') }),
+      ];
+      addObject(-15, 0, geometry, materials);
+    }
+    {
+      const material = new THREE.MeshBasicMaterial({
+        map: loader.load('./three.js-master/manual/resources/images/mip-low-res-enlarged.png')
+      });
+      addObject(15, 0, geometry, material);
+      const smallGeometry = new THREE.BoxGeometry(1, 1, 1);
+      addObject(30, 0, smallGeometry, material);
+    }
+
+    function addObject(x, y, geometry, material) {
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(x, y);
+      scene.add(mesh);
+      objects.push(mesh);
+    }
+
+    function resizeRendererToDisplaySize(renderer) {
+      const canvas = renderer.domElement;
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      const needResize = canvas.width !== width || canvas.height !== height;
+      if (needResize) {
+        renderer.setSize(width, height, false);
+      }
+      return needResize;
+    }
+
+    function rotate(time) {
+      time *= 0.001;
+      if (resizeRendererToDisplaySize(renderer)) {
+        const canvas = renderer.domElement;
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+      objects.forEach((mesh) => {
+        mesh.rotation.x = time;
+        mesh.rotation.y = time;
+      })
+
+      renderer.render(scene, camera);
+      requestAnimationFrame(rotate);
+    }
+    requestAnimationFrame(rotate);
+
+  </script>
+</body>
+
+</html>
